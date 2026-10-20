@@ -1,0 +1,30 @@
+**Purple Map Fix** keeps the Skyrim world map readable on big mod lists like **LoreRim** and **Nolvus**. It's an SKSE plugin with no .esp, so it doesn't use a plugin slot and load order doesn't matter.
+
+## The problem
+
+Opening the world map shows a blank purple, pink or blue sheet instead of the map. This mostly happens on lists that use flat or paper maps built on **Flat World Map Framework (FWMF)**.
+
+FWMF works by moving the map camera high above a flat paper map. It stores that in each worldspace record. Any plugin that edits anything in a worldspace, even one placed object or NPC, carries a full copy of that record. If it loads after FWMF, it silently puts the camera back to vanilla: under the paper map. That's the purple sheet. The usual fix is "keep the map plugins last", and it breaks again every time you add a mod. Nolvus's own guide warns about exactly this.
+
+## What this does
+
+1. **Fixes the purple map, in any load order.** At startup it reads the worldspace records of every plugin. For each map setting it ignores plugins that just carry a stale vanilla copy, and keeps the value from the last plugin that changed it on purpose. Works for every worldspace, including Solstheim, DLC and new lands, and for any map mod.
+2. **Patches missing map textures.** When the map opens it checks the textures the map is drawn from. Missing ones are patched with parchment (paper maps) or stone, or broken distant objects are hidden. Each broken file is logged so you can fix the real cause.
+
+It never changes your load order or any file on disk. The log says exactly what it restored and which plugin had reset it:
+
+```
+Map data: Tamriel map bounds and camera (MNAM) restored from 'FWMF - Ultimate Patch.esp' (it was reset by 'ahzFleetKnight.esp', which loads later)
+```
+
+## Cost
+
+Measured on LoreRim (3,646 plugins): 128 ms once on the loading screen, about 4 ms when the map opens, and nothing at all during normal play.
+
+## Install
+
+Requires SKSE64 and Address Library for SKSE Plugins. Skyrim SE 1.5.97 or AE 1.6.x (tested on 1.6.1170); not VR.
+
+Download **PurpleMapFix-x.y.z.zip** below and install it with Mod Organizer 2 or Vortex. (The `-pdb` zip is debug symbols for crash logs; you don't need it to play.)
+
+Log: `Documents\My Games\Skyrim Special Edition\SKSE\PurpleMapFix.log`. Settings: `SKSE\Plugins\PurpleMapFix.ini`. Full details in the [README](https://github.com/RahmelJackson/PurpleMapFix#readme).

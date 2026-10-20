@@ -176,6 +176,12 @@ They build small synthetic plugin files (vanilla base, a map mod, stale copies l
 a compressed record, a deliberate later change) and check that the right values win. CI runs
 them on every push, and builds the Windows DLL.
 
+### Releases
+
+Actions tab → **CI** → **Run workflow**, enter the version (e.g. `1.0.1`). It runs the tests,
+builds the mod and creates a **draft** release with the zip and the notes from
+`.github/release-notes.md`. Check it and click **Publish**; publishing creates the version tag.
+
 ## Project layout
 
 | Path | What |

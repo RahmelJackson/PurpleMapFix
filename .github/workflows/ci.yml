@@ -3,8 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  # Release: Actions tab -> CI -> Run workflow -> enter the version.
+  # Builds the mod and creates a DRAFT release with the zip, to check and publish.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.0.0)"
+        required: true
+        default: "1.0.0"
 
 env:
   # Same commit build.ps1 pins.
@@ -49,8 +56,11 @@ jobs:
 
       - name: Package
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          $ver = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { 'dev-' + $env:GITHUB_SHA.Substring(0, 7) }
+          $ver = 'dev-' + $env:GITHUB_SHA.Substring(0, 7)
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { $ver = $env:RELEASE_VERSION }
           New-Item -ItemType Directory -Force symbols | Out-Null
           Move-Item dist/SKSE/Plugins/PurpleMapFix.pdb symbols/ -ErrorAction SilentlyContinue
           Compress-Archive -Path dist/* -DestinationPath "PurpleMapFix-$ver.zip"
@@ -61,10 +71,15 @@ jobs:
           name: PurpleMapFix
           path: PurpleMapFix-*.zip
 
-      # Tags create a draft release, so it can be checked before it goes public.
+      # A draft release, so it can be checked before it goes public. The v<version>
+      # tag is created on this commit when the draft is published.
       - name: Draft release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          tag_name: v${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Purple Map Fix ${{ inputs.version }}
+          body_path: .github/release-notes.md
           files: PurpleMapFix-*.zip
