@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  # Same commit build.ps1 pins.
+  COMMONLIB_COMMIT: b93280e832f263dbef44e44cbe2936622a02f91a
+
+jobs:
+  tests:
+    name: Resolver tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zlib
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+      - name: Run tests
+        run: sh tests/run_tests.sh
+
+  build:
+    name: Build DLL (Windows)
+    runs-on: windows-latest
+    needs: tests
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Get CommonLibSSE-NG
+        shell: pwsh
+        run: |
+          git clone --recurse-submodules https://github.com/CharmedBaryon/CommonLibSSE-NG.git lib/commonlibsse-ng
+          git -C lib/commonlibsse-ng checkout --quiet $env:COMMONLIB_COMMIT
+          git -C lib/commonlibsse-ng submodule update --init --recursive --quiet
+
+      - name: Build
+        shell: pwsh
+        run: |
+          xmake f -m releasedbg -y
+          xmake -y
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $ver = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { 'dev-' + $env:GITHUB_SHA.Substring(0, 7) }
+          New-Item -ItemType Directory -Force symbols | Out-Null
+          Move-Item dist/SKSE/Plugins/PurpleMapFix.pdb symbols/ -ErrorAction SilentlyContinue
+          Compress-Archive -Path dist/* -DestinationPath "PurpleMapFix-$ver.zip"
+          Compress-Archive -Path symbols/* -DestinationPath "PurpleMapFix-$ver-pdb.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PurpleMapFix
+          path: PurpleMapFix-*.zip
+
+      # Tags create a draft release, so it can be checked before it goes public.
+      - name: Draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: PurpleMapFix-*.zip

@@ -1,0 +1,15 @@
+# build output and fetched dependencies
+lib/
+build/
+.xmake/
+vsxmake*/
+.vs/
+*.zip
+build-log.txt
+
+# built plugin (the dist/ folder keeps the ini and textures)
+dist/SKSE/Plugins/*.dll
+dist/SKSE/Plugins/*.pdb
+
+# test build output
+tests/build/
