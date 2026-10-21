@@ -92,9 +92,20 @@ $dll = Join-Path $root 'dist\SKSE\Plugins\PurpleMapFix.dll'
 if (-not (Test-Path $dll)) { Write-Host "Build finished but the DLL wasn't found in dist."; Done 8 }
 
 Write-Host "`n== Packaging =="
+# Built with .NET directly: Windows PowerShell's Compress-Archive writes "\" in zip paths,
+# which some mod managers misread. Debug symbols (.pdb) are left out.
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 $zip = Join-Path $root 'PurpleMapFix-mod.zip'
 if (Test-Path $zip) { Remove-Item $zip }
-Get-ChildItem (Join-Path $root 'dist') | Where-Object { $_.Extension -ne '.pdb' } |
-    Compress-Archive -DestinationPath $zip
+$dist = Join-Path $root 'dist'
+$archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
+try {
+    Get-ChildItem -LiteralPath $dist -Recurse -File | Where-Object { $_.Extension -ne '.pdb' } | ForEach-Object {
+        $entry = $_.FullName.Substring($dist.Length + 1).Replace('\', '/')
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entry, 'Optimal')
+    }
+} finally {
+    $archive.Dispose()
+}
 Write-Host "Mod ready to install: $zip"
 Done 0

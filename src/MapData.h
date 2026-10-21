@@ -51,6 +51,11 @@ namespace MapData
 	{
 		Bytes       value;
 		std::string decidedBy;  // plugin whose value is used
+
+		// Plugins loading after decidedBy whose copy has a different value, in load
+		// order. If this isn't empty, the game would use the wrong value: these are the
+		// plugins that "reset" the map setting.
+		std::vector<std::string> resetBy;
 	};
 
 	struct WorldResult

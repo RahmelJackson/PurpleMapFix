@@ -9,3 +9,6 @@ python3 "$here/make_fixtures.py" "$build/fixtures"
 ${CXX:-g++} -std=c++20 -O2 -Wall -Wextra -Werror -I"$here/../src" \
     "$here/test_mapdata.cpp" "$here/../src/MapData.cpp" -lz -o "$build/test_mapdata"
 "$build/test_mapdata" "$build/fixtures"
+${CXX:-g++} -std=c++20 -O2 -Wall -Wextra -Werror -I"$here/../src" \
+    "$here/test_loadorder.cpp" "$here/../src/LoadOrder.cpp" -o "$build/test_loadorder"
+"$build/test_loadorder"

@@ -234,13 +234,23 @@ namespace MapData
 			for (std::size_t i = 0; i < kFieldCount; ++i) {
 				const auto& base = copies.front().fields[i];
 				std::optional<FieldResult> decided;
+				std::size_t                decidedAt = 0;
 				if (base) {
-					decided = FieldResult{ *base, copies.front().plugin };
+					decided = FieldResult{ *base, copies.front().plugin, {} };
 				}
 				for (std::size_t n = 1; n < copies.size(); ++n) {
 					const auto& v = copies[n].fields[i];
 					if (v && v != base) {
-						decided = FieldResult{ *v, copies[n].plugin };
+						decided = FieldResult{ *v, copies[n].plugin, {} };
+						decidedAt = n;
+					}
+				}
+				if (decided) {
+					for (std::size_t n = decidedAt + 1; n < copies.size(); ++n) {
+						const auto& v = copies[n].fields[i];
+						if (v && *v != decided->value) {
+							decided->resetBy.push_back(copies[n].plugin);
+						}
 					}
 				}
 				r.fields[i] = std::move(decided);

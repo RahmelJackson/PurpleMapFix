@@ -78,6 +78,8 @@ int main(int argc, char** argv)
 		Check(Field(t, ONAM) == F_ONAM, "map mod's offset wins over later stale copies");
 		Check(DecidedBy(t, MNAM) == "MapMod.esp", "decided by MapMod.esp");
 		Check(t && t->lastOverride == "StaleCopyZ.esp", "game's own winner is the last stale copy (deleted record ignored)");
+		Check(t && t->fields[MNAM] && t->fields[MNAM]->resetBy == std::vector<std::string>{ "StaleCopy.esp", "StaleCopyZ.esp" },
+			"both stale copies are listed as resetting the camera, in load order (deleted one not)");
 		auto c = Find(r, "ChildWorld");
 		Check(Field(c, ONAM) == F_ONAM, "child world's offset from the map mod");
 		Check(Field(c, MNAM) == "<none>", "child world without MNAM stays without");
@@ -90,6 +92,10 @@ int main(int argc, char** argv)
 		Check(Field(t, MNAM) == G_MNAM, "later map mod's camera wins");
 		Check(DecidedBy(t, MNAM) == "LaterMapMod.esp", "decided by LaterMapMod.esp");
 		Check(Field(t, ONAM) == F_ONAM, "offset unchanged from the map mods");
+		Check(t && t->fields[MNAM]->resetBy == std::vector<std::string>{ "StaleCopyZ.esp" },
+			"only the stale copy after the deciding plugin is listed");
+		Check(t && t->fields[ONAM]->resetBy == std::vector<std::string>{ "StaleCopyZ.esp" },
+			"offset: stale copy after the later map mod is listed");
 	}
 
 	std::printf("No map mod: vanilla stays vanilla\n");
@@ -98,6 +104,7 @@ int main(int argc, char** argv)
 		auto t = Find(r, "Tamriel");
 		Check(Field(t, MNAM) == V_MNAM, "base value kept");
 		Check(DecidedBy(t, MNAM) == "Base.esm", "decided by Base.esm");
+		Check(t && t->fields[MNAM]->resetBy.empty(), "nothing listed when nothing is wrong");
 	}
 
 	std::printf("Worldspace defined by a mod, not a master file\n");

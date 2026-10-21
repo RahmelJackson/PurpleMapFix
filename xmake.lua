@@ -4,7 +4,7 @@
 set_xmakever("2.8.2")
 
 set_project("PurpleMapFix")
-set_version("1.0.1")
+set_version("1.1.0")
 set_license("MIT")
 
 set_languages("c++23")

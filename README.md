@@ -52,6 +52,35 @@ The log says what was restored and which plugin had reset it:
 Map data: Tamriel map bounds and camera (MNAM) restored from 'FWMF - Ultimate Patch.esp' (it was reset by 'ahzFleetKnight.esp', which loads later)
 ```
 
+### Making it permanent: Fix Load Order
+
+Purple Map Fix fixes the map every session without touching your files. If you'd rather
+have the load order itself be right (for other tools, or to see a clean log), it tells you
+how and can do it for you.
+
+Each time the game starts it writes `PurpleMapFix-LoadOrder.txt` next to its log. It
+lists the plugins that reset the map settings and the change that fixes it: the map plugins
+(for example `FWMF - Ultimate Patch.esp`) move to just after the last plugin that resets
+them. Nothing else moves, except plugins that need a map plugin as a master, which move with
+it. That's the smallest change that works: map plugins only carry map data, and moving them
+later can never put them before one of their masters. (Moving the other mods up instead
+would change which of them win their other conflicts.)
+
+To apply it:
+
+1. Start the game once with Purple Map Fix installed (reaching the main menu is enough).
+2. Close the game and Mod Organizer 2.
+3. In MO2, right-click **Purple Map Fix** → **Open in Explorer**, open **PurpleMapFix Tools**,
+   and run **Preview Fix Load Order.bat** to see the change, then **Fix Load Order.bat** to
+   make it.
+
+The script finds your MO2 profile by matching it against the load order the game actually
+used, backs up `plugins.txt` and `loadorder.txt` (`.before-purplemapfix-<date>`), and moves
+only those lines. It refuses to run while MO2 or the game is open, and if a plugin it would
+move is locked in MO2. Vortex users get the equivalent "Load after" rule to add instead,
+since Vortex sorts plugins itself. If you sort with LOOT later it may undo the move;
+Purple Map Fix still fixes the map in game either way.
+
 ## Fix 2: missing or broken map textures
 
 Purple is also what Skyrim draws for a texture it couldn't load. When the world map opens,
@@ -115,6 +144,7 @@ build but not yet tested; reports welcome.
 | Setting | Default | What it does |
 |---|---|---|
 | `bRestoreMapData` | 1 | Fix 1. Set to 0 if you deliberately load a plugin to reset a map to vanilla |
+| `bWriteLoadOrderReport` | 1 | Write `PurpleMapFix-LoadOrder.txt` for Fix Load Order |
 | `sMapStyle` | auto | `paper` for paper/flat maps, `stone` for vanilla-style, `auto` to detect |
 | `sObjectLODMode` | auto | `hide` or `patch` broken distant objects |
 | `sCustomMapTexture` | empty | Use a texture from your own map mod for patched spots |
@@ -173,7 +203,8 @@ tests/run_tests.sh
 ```
 
 They build small synthetic plugin files (vanilla base, a map mod, stale copies loaded later,
-a compressed record, a deliberate later change) and check that the right values win. CI runs
+a compressed record, a deliberate later change) and check that the right values win, and
+check the load order planner (dependent plugins, master files, unfixable cases). CI runs
 them on every push, and builds the Windows DLL.
 
 ### Releases
@@ -188,6 +219,8 @@ builds the mod and creates a **draft** release with the zip and the notes from
 |---|---|
 | `src/main.cpp` | SKSE plugin: map data restore, texture checks, settings, logging |
 | `src/MapData.h/.cpp` | Reads worldspace records from plugin files and resolves them (no game code) |
+| `src/LoadOrder.h/.cpp` | Plans the load order change for Fix Load Order (no game code) |
+| `dist/PurpleMapFix Tools/` | Fix Load Order scripts |
 | `dist/` | The mod's non-code files: ini and fallback textures |
 | `tests/` | Synthetic plugin fixtures and resolver tests |
 | `tools/make_fallback_textures.py` | Regenerates the fallback textures |

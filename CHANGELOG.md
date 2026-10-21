@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 (2026-10-21)
+
+- The log now lists every plugin that resets the map settings, not just the last one.
+- New load order report, `PurpleMapFix-LoadOrder.txt` (next to the log), written at each
+  start: the plugins that reset the map and the load order change that fixes it for good.
+- New `PurpleMapFix Tools\Fix Load Order.bat`: applies that change to your Mod Organizer 2
+  profile (or plugins.txt), with a backup. It moves the map plugins to just after the last
+  plugin that resets them, and nothing else. `Preview Fix Load Order.bat` shows the change
+  without making it.
+- `build.bat` packages the mod zip without debug symbols and with standard zip paths.
+
 ## 1.0.1 (2026-10-20)
 
 - A broken texture set shared by many meshes is now patched once and the patched copy

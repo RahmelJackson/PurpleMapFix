@@ -23,6 +23,7 @@
 
 #include "pch.h"
 
+#include "LoadOrder.h"
 #include "MapData.h"
 
 namespace
@@ -56,6 +57,7 @@ namespace
 	namespace Settings
 	{
 		bool          restoreMapData = true;
+		bool          writeLoadOrderReport = true;
 		bool          scanOnMapOpen = true;
 		bool          replaceBroken = true;
 		bool          patchNearbyObjects = false;
@@ -116,6 +118,8 @@ namespace
 				try {
 					if (key == "bRestoreMapData") {
 						restoreMapData = ToBool(value);
+					} else if (key == "bWriteLoadOrderReport") {
+						writeLoadOrderReport = ToBool(value);
 					} else if (key == "bScanOnMapOpen") {
 						scanOnMapOpen = ToBool(value);
 					} else if (key == "bReplaceBrokenTextures") {
@@ -763,6 +767,80 @@ namespace
 	// Reads every loaded plugin's worldspace records, works out which map settings were
 	// changed on purpose, and puts those back if a later plugin's stale copy reset them.
 
+	// Writes PurpleMapFix-LoadOrder.txt next to the log: which plugins reset the map and
+	// the load order change that fixes it for good. "Fix Load Order.bat" applies it.
+	void WriteLoadOrderReport(const std::vector<RE::TESFile*>& loaded, const std::vector<LoadOrder::Problem>& problems)
+	{
+		std::vector<LoadOrder::Plugin> order;
+		order.reserve(loaded.size());
+		for (auto file : loaded) {
+			LoadOrder::Plugin p;
+			p.name = std::string(file->GetFilename());
+			const auto lower = ToLower(p.name);
+			p.masterLike = file->recordFlags.any(RE::TESFile::RecordFlag::kMaster) || lower.ends_with(".esm") || lower.ends_with(".esl");
+			for (auto master : file->masters) {
+				if (master) {
+					p.masters.emplace_back(master);
+				}
+			}
+			order.push_back(std::move(p));
+		}
+
+		const auto plan = LoadOrder::MakePlan(order, problems);
+		using Status = LoadOrder::Plan::Status;
+
+		auto dir = SKSE::log::log_directory();
+		if (!dir) {
+			return;
+		}
+		const auto path = *dir / "PurpleMapFix-LoadOrder.txt";
+		std::ofstream out(path, std::ios::trunc);
+		if (!out) {
+			spdlog::warn("Couldn't write {}", path.string());
+			return;
+		}
+
+		out << "# Purple Map Fix - load order report\n"
+			   "# Written by the game each time it starts. Read by \"Fix Load Order.bat\".\n\n";
+		out << "[status]\n"
+			<< (plan.status == Status::kFixable ? "fixable" : plan.status == Status::kNotFixable ? "not fixable" : "nothing to do") << "\n";
+		if (!plan.reason.empty()) {
+			out << "[reason]\n" << plan.reason << "\n";
+		}
+		auto list = [&](const char* section, const std::vector<std::string>& names) {
+			out << "[" << section << "]\n";
+			for (const auto& n : names) {
+				out << n << "\n";
+			}
+		};
+		list("map plugins", plan.mapPlugins);
+		list("reset by", plan.resetBy);
+		list("move", plan.move);
+		out << "[after]\n" << plan.after << "\n";
+		out << "[loaded]\n";
+		for (const auto& p : order) {
+			out << p.name << "\n";
+		}
+
+		switch (plan.status) {
+		case Status::kFixable:
+			spdlog::warn("Load order: {} plugin{} reset the map settings from {}. Purple Map Fix fixed it for this session.",
+				plan.resetBy.size(), plan.resetBy.size() == 1 ? "" : "s", plan.mapPlugins.size() == 1 ? "'" + plan.mapPlugins[0] + "'" : "the map plugins");
+			for (const auto& r : plan.resetBy) {
+				spdlog::warn("Load order:   resets the map: {}", r);
+			}
+			spdlog::warn("Load order: to fix it in your load order for good, run \"Fix Load Order.bat\" (in the mod's \"PurpleMapFix Tools\" folder) with your mod manager closed. "
+						 "It moves {} plugin{} to just after '{}'.",
+				plan.move.size(), plan.move.size() == 1 ? "" : "s", plan.after);
+			break;
+		case Status::kNotFixable:
+			spdlog::warn("Load order: can't be fixed by reordering: {}. Purple Map Fix still fixes it each session.", plan.reason);
+			break;
+		default:
+			break;
+		}
+	}
+
 	std::uint32_t RestoreMapData()
 	{
 		auto dataHandler = RE::TESDataHandler::GetSingleton();
@@ -837,7 +915,8 @@ namespace
 			}
 		}
 
-		std::uint32_t restored = 0;
+		std::uint32_t                  restored = 0;
+		std::vector<LoadOrder::Problem> problems;
 		for (const auto& world : resolver.Resolve()) {
 			auto ws = dataHandler->LookupForm<RE::TESWorldSpace>(world.key.objectID, world.key.originFile);
 			if (!ws) {
@@ -866,15 +945,30 @@ namespace
 				}
 				std::memcpy(targets[i].data, decided->value.data(), n);
 				++restored;
-				spdlog::warn("Map data: {} {} restored from '{}' (it was reset by '{}', which loads later)",
-					world.editorID.empty() ? std::format("{:06X}", world.key.objectID) : world.editorID,
-					targets[i].what, decided->decidedBy, world.lastOverride);
+
+				const auto worldName = world.editorID.empty() ? std::format("{:06X}", world.key.objectID) : world.editorID;
+				std::string resetBy;
+				for (const auto& r : decided->resetBy) {
+					resetBy += (resetBy.empty() ? "'" : ", '") + r + "'";
+				}
+				if (resetBy.empty()) {
+					resetBy = "'" + world.lastOverride + "'";
+				}
+				spdlog::warn("Map data: {} {} restored from '{}' (it was reset by {}, which load{} later)",
+					worldName, targets[i].what, decided->decidedBy, resetBy, decided->resetBy.size() == 1 ? "s" : "");
+				if (!decided->resetBy.empty()) {
+					problems.push_back({ worldName, decided->decidedBy, decided->resetBy });
+				}
 			}
 		}
 
 		const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 		spdlog::info("Map data: checked {} plugins in {} ms on {} threads ({} unreadable), {} settings restored",
 			loaded.size(), ms, threadCount, unreadable, restored);
+
+		if (Settings::writeLoadOrderReport) {
+			WriteLoadOrderReport(loaded, problems);
+		}
 		return restored;
 	}
 

@@ -1,8 +1,9 @@
 **Purple Map Fix** keeps the Skyrim world map readable on big mod lists like **LoreRim** and **Nolvus**. It's an SKSE plugin with no .esp, so it doesn't use a plugin slot and load order doesn't matter.
 
-## New in 1.0.1
+## New in 1.1.0
 
-- A broken texture set shared by many meshes is now patched once and reused, instead of rebuilt for every mesh. Less work on setups with broken map LOD.
+- **Fix Load Order:** the log now lists every plugin that resets the map, and the mod writes a load order report each time the game starts. Run **PurpleMapFix Tools\Fix Load Order.bat** (with MO2 closed) to make the fix permanent in your load order: it moves the map plugins to just after the last plugin that resets them, with a backup, and nothing else. **Preview Fix Load Order.bat** shows the change first.
+- A broken texture set shared by many meshes is patched once and reused.
 
 ## The problem
 
