@@ -55,16 +55,15 @@ Map data: Tamriel map bounds and camera (MNAM) restored from 'FWMF - Ultimate Pa
 ### Making it permanent: Fix Load Order
 
 Purple Map Fix fixes the map every session without touching your files. If you'd rather
-have the load order itself be right (for other tools, or to see a clean log), it tells you
-how and can do it for you.
+have the load order itself be right, it tells you what's wrong and can fix it for you.
 
-Each time the game starts it writes `PurpleMapFix-LoadOrder.txt` next to its log. It
-lists the plugins that reset the map settings and the change that fixes it: the map plugins
-(for example `FWMF - Ultimate Patch.esp`) move to just after the last plugin that resets
-them. Nothing else moves, except plugins that need a map plugin as a master, which move with
-it. That's the smallest change that works: map plugins only carry map data, and moving them
-later can never put them before one of their masters. (Moving the other mods up instead
-would change which of them win their other conflicts.)
+Each time the game starts, the log lists every plugin that resets the map settings, and the
+mod writes `PurpleMapFix-LoadOrder.txt` next to its log with the change that fixes it: those
+plugins move **up**, to just before the map plugin (for example `FWMF - Ultimate Patch.esp`),
+keeping their order. A plugin can't load before its own masters, so if one of them needs a
+master that loads after that point, the master moves up with it (the log and the script say
+which). If a plugin needs the map plugin itself as a master, it can't move above it; the
+report says so, and Purple Map Fix keeps fixing it in game.
 
 To apply it:
 
@@ -77,9 +76,10 @@ To apply it:
 The script finds your MO2 profile by matching it against the load order the game actually
 used, backs up `plugins.txt` and `loadorder.txt` (`.before-purplemapfix-<date>`), and moves
 only those lines. It refuses to run while MO2 or the game is open, and if a plugin it would
-move is locked in MO2. Vortex users get the equivalent "Load after" rule to add instead,
-since Vortex sorts plugins itself. If you sort with LOOT later it may undo the move;
-Purple Map Fix still fixes the map in game either way.
+move is locked in MO2. Moving a plugin up can change which plugin wins its other conflicts,
+so check your game after; the backups undo it. Vortex users get the equivalent "Load after"
+rule to add instead, since Vortex sorts plugins itself. If you sort with LOOT later it may
+undo the move; Purple Map Fix still fixes the map in game either way.
 
 ## Fix 2: missing or broken map textures
 

@@ -56,6 +56,10 @@ namespace MapData
 		// order. If this isn't empty, the game would use the wrong value: these are the
 		// plugins that "reset" the map setting.
 		std::vector<std::string> resetBy;
+
+		// True when the copy the game uses (the last plugin's) already has this value,
+		// so nothing needs restoring and the world doesn't even need looking up.
+		bool gameHasIt = true;
 	};
 
 	struct WorldResult

@@ -3,11 +3,11 @@
 // Works out a load order change that fixes the map settings permanently, so the game
 // loads the right values without Purple Map Fix having to restore them.
 //
-// The plugins whose map settings should win (usually FWMF and its patch) are moved to
-// just after the last plugin that resets them. Moving them, rather than the plugins
-// that reset them, is the smaller change: map plugins only carry map data, and moving a
-// plugin later can never put it before one of its masters. Any plugin in between that
-// lists a moved plugin as a master moves along with it, keeping its order.
+// The plugins that reset the map settings move up to just before the first map plugin
+// (the plugin whose values should win, usually FWMF's patch), keeping their order. A
+// plugin can't load before its own masters, so any master of a moved plugin that loads
+// after that point moves up with it. If a plugin needs a map plugin as a master, it
+// can't move before it, and the plan says it can't be fixed by reordering.
 //
 // No game code in here, so it can be tested anywhere.
 
@@ -44,8 +44,9 @@ namespace LoadOrder
 		std::string              reason;      // why it can't be fixed by reordering
 		std::vector<std::string> mapPlugins;  // the plugins whose values should win
 		std::vector<std::string> resetBy;     // every plugin that resets them, in load order
-		std::vector<std::string> move;        // plugins to move, in their current order
-		std::string              after;       // ...to directly after this plugin
+		std::vector<std::string> move;        // plugins to move up, in their current order
+		std::vector<std::string> mastersMoved;  // the part of `move` that are only there as masters
+		std::string              before;      // ...to directly before this plugin
 	};
 
 	Plan MakePlan(const std::vector<Plugin>& loadOrder, const std::vector<Problem>& problems);

@@ -2,7 +2,8 @@
 
 ## New in 1.1.0
 
-- **Fix Load Order:** the log now lists every plugin that resets the map, and the mod writes a load order report each time the game starts. Run **PurpleMapFix Tools\Fix Load Order.bat** (with MO2 closed) to make the fix permanent in your load order: it moves the map plugins to just after the last plugin that resets them, with a backup, and nothing else. **Preview Fix Load Order.bat** shows the change first.
+- **Fix Load Order:** the log now lists every plugin that resets the map, and the mod writes a load order report each time the game starts. Run **PurpleMapFix Tools\Fix Load Order.bat** (with MO2 closed) to make the fix permanent: it moves those plugins up to just before the map plugin (with any master they need), backs up your plugin list first, and changes nothing else. **Preview Fix Load Order.bat** shows the change first.
+- Faster startup on big lists: only worldspaces that are actually wrong get looked up.
 - A broken texture set shared by many meshes is patched once and reused.
 
 ## The problem

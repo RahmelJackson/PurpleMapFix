@@ -771,23 +771,29 @@ namespace
 	// the load order change that fixes it for good. "Fix Load Order.bat" applies it.
 	void WriteLoadOrderReport(const std::vector<RE::TESFile*>& loaded, const std::vector<LoadOrder::Problem>& problems)
 	{
-		std::vector<LoadOrder::Plugin> order;
-		order.reserve(loaded.size());
-		for (auto file : loaded) {
-			LoadOrder::Plugin p;
-			p.name = std::string(file->GetFilename());
-			const auto lower = ToLower(p.name);
-			p.masterLike = file->recordFlags.any(RE::TESFile::RecordFlag::kMaster) || lower.ends_with(".esm") || lower.ends_with(".esl");
-			for (auto master : file->masters) {
-				if (master) {
-					p.masters.emplace_back(master);
-				}
-			}
-			order.push_back(std::move(p));
-		}
-
-		const auto plan = LoadOrder::MakePlan(order, problems);
+		const auto start = std::chrono::steady_clock::now();
 		using Status = LoadOrder::Plan::Status;
+
+		// The plugin list (with every plugin's masters) is only needed when something has
+		// to move. In the normal case, nothing is built and the report is a few bytes.
+		std::vector<LoadOrder::Plugin> order;
+		LoadOrder::Plan                plan;
+		if (!problems.empty()) {
+			order.reserve(loaded.size());
+			for (auto file : loaded) {
+				LoadOrder::Plugin p;
+				p.name = std::string(file->GetFilename());
+				const auto lower = ToLower(p.name);
+				p.masterLike = file->recordFlags.any(RE::TESFile::RecordFlag::kMaster) || lower.ends_with(".esm") || lower.ends_with(".esl");
+				for (auto master : file->masters) {
+					if (master) {
+						p.masters.emplace_back(master);
+					}
+				}
+				order.push_back(std::move(p));
+			}
+			plan = LoadOrder::MakePlan(order, problems);
+		}
 
 		auto dir = SKSE::log::log_directory();
 		if (!dir) {
@@ -813,25 +819,36 @@ namespace
 				out << n << "\n";
 			}
 		};
-		list("map plugins", plan.mapPlugins);
-		list("reset by", plan.resetBy);
-		list("move", plan.move);
-		out << "[after]\n" << plan.after << "\n";
-		out << "[loaded]\n";
-		for (const auto& p : order) {
-			out << p.name << "\n";
+		if (plan.status != Status::kNothingToDo) {
+			list("map plugins", plan.mapPlugins);
+			list("reset by", plan.resetBy);
 		}
+		if (plan.status == Status::kFixable) {
+			list("move", plan.move);
+			list("masters moved", plan.mastersMoved);
+			out << "[before]\n" << plan.before << "\n";
+			// The whole load order, so the script can find the profile the game used.
+			out << "[loaded]\n";
+			for (const auto& p : order) {
+				out << p.name << "\n";
+			}
+		}
+		out.close();
 
+		const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
 		switch (plan.status) {
 		case Status::kFixable:
-			spdlog::warn("Load order: {} plugin{} reset the map settings from {}. Purple Map Fix fixed it for this session.",
-				plan.resetBy.size(), plan.resetBy.size() == 1 ? "" : "s", plan.mapPlugins.size() == 1 ? "'" + plan.mapPlugins[0] + "'" : "the map plugins");
+			spdlog::warn("Load order: {} plugin{} load after '{}' and reset the map settings. Purple Map Fix fixed it for this session.",
+				plan.resetBy.size(), plan.resetBy.size() == 1 ? "" : "s", plan.before);
 			for (const auto& r : plan.resetBy) {
 				spdlog::warn("Load order:   resets the map: {}", r);
 			}
-			spdlog::warn("Load order: to fix it in your load order for good, run \"Fix Load Order.bat\" (in the mod's \"PurpleMapFix Tools\" folder) with your mod manager closed. "
-						 "It moves {} plugin{} to just after '{}'.",
-				plan.move.size(), plan.move.size() == 1 ? "" : "s", plan.after);
+			for (const auto& m : plan.mastersMoved) {
+				spdlog::warn("Load order:   needed as a master, moves up too: {}", m);
+			}
+			spdlog::warn("Load order: to fix it in your load order for good, close your mod manager and run \"Fix Load Order.bat\" "
+						 "(in the mod's \"PurpleMapFix Tools\" folder). It moves {} plugin{} up to just before '{}'. Report written in {:.2f} ms.",
+				plan.move.size(), plan.move.size() == 1 ? "" : "s", plan.before, us / 1000.0);
 			break;
 		case Status::kNotFixable:
 			spdlog::warn("Load order: can't be fixed by reordering: {}. Purple Map Fix still fixes it each session.", plan.reason);
@@ -918,6 +935,13 @@ namespace
 		std::uint32_t                  restored = 0;
 		std::vector<LoadOrder::Problem> problems;
 		for (const auto& world : resolver.Resolve()) {
+			// Most worlds are fine: the game's own copy already has the right values.
+			// Only look up the ones that don't (looking a world up by plugin name walks
+			// the whole plugin list, so this matters with thousands of plugins).
+			const bool needsLook = std::ranges::any_of(world.fields, [](const auto& f) { return f && !f->gameHasIt; });
+			if (!needsLook) {
+				continue;
+			}
 			auto ws = dataHandler->LookupForm<RE::TESWorldSpace>(world.key.objectID, world.key.originFile);
 			if (!ws) {
 				continue;
@@ -936,7 +960,7 @@ namespace
 
 			for (std::size_t i = 0; i < MapData::kFieldCount; ++i) {
 				const auto& decided = world.fields[i];
-				if (!decided || decided->value.empty()) {
+				if (!decided || decided->value.empty() || decided->gameHasIt) {
 					continue;
 				}
 				const auto n = std::min(decided->value.size(), targets[i].size);

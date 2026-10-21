@@ -60,8 +60,7 @@ namespace LoadOrder
 			plan.resetBy.push_back(loadOrder[i].name);
 		}
 
-		const std::size_t anchor = *resetters.rbegin();
-		const std::size_t first = *deciders.begin();
+		const std::size_t anchor = *deciders.begin();  // the first map plugin
 
 		// Masters always load before plain plugins, whatever the list says. If a map
 		// plugin is a master and a plugin resetting it isn't, no order can fix it.
@@ -76,36 +75,41 @@ namespace LoadOrder
 			}
 		}
 
-		// The move set: the map plugins, plus everything between them and the anchor
-		// that needs one of them as a master (and so must stay after it).
-		std::set<std::string> moving;
-		for (auto d : deciders) {
-			moving.insert(Lower(loadOrder[d].name));
-		}
-		for (std::size_t i = first; i <= anchor; ++i) {
-			const auto name = Lower(loadOrder[i].name);
-			if (moving.contains(name)) {
-				continue;
+		// The move set: the resetting plugins, plus every master they need that loads
+		// after the anchor (and those masters' masters, and so on).
+		std::set<std::size_t> moving;
+		std::vector<std::size_t> pending(resetters.begin(), resetters.end());
+		while (!pending.empty()) {
+			const auto i = pending.back();
+			pending.pop_back();
+			if (i <= anchor || !moving.insert(i).second) {
+				continue;  // already loads early enough, or already handled
 			}
-			const bool needsMoved = std::ranges::any_of(loadOrder[i].masters,
-				[&](const std::string& m) { return moving.contains(Lower(m)); });
-			if (!needsMoved) {
-				continue;
+			for (const auto& m : loadOrder[i].masters) {
+				const auto mp = find(m);
+				if (mp < 0) {
+					continue;  // not loaded: the game wouldn't load this plugin either
+				}
+				const auto mi = static_cast<std::size_t>(mp);
+				if (deciders.contains(mi)) {
+					plan.status = Plan::Status::kNotFixable;
+					plan.reason = "'" + loadOrder[i].name + "' needs the map plugin '" + loadOrder[mi].name +
+					              "' as a master, so it has to load after it";
+					return plan;
+				}
+				if (mi > anchor) {
+					pending.push_back(mi);
+				}
 			}
-			if (resetters.contains(i)) {
-				plan.status = Plan::Status::kNotFixable;
-				plan.reason = "'" + loadOrder[i].name + "' resets the map but also requires a map plugin as a master, so it has to load after it";
-				return plan;
-			}
-			moving.insert(name);
 		}
 
-		for (std::size_t i = first; i <= anchor; ++i) {
-			if (moving.contains(Lower(loadOrder[i].name))) {
-				plan.move.push_back(loadOrder[i].name);
+		for (auto i : moving) {
+			plan.move.push_back(loadOrder[i].name);
+			if (!resetters.contains(i)) {
+				plan.mastersMoved.push_back(loadOrder[i].name);
 			}
 		}
-		plan.after = loadOrder[anchor].name;
+		plan.before = loadOrder[anchor].name;
 		plan.status = Plan::Status::kFixable;
 		return plan;
 	}

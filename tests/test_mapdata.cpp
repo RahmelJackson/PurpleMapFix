@@ -80,7 +80,9 @@ int main(int argc, char** argv)
 		Check(t && t->lastOverride == "StaleCopyZ.esp", "game's own winner is the last stale copy (deleted record ignored)");
 		Check(t && t->fields[MNAM] && t->fields[MNAM]->resetBy == std::vector<std::string>{ "StaleCopy.esp", "StaleCopyZ.esp" },
 			"both stale copies are listed as resetting the camera, in load order (deleted one not)");
+		Check(t && t->fields[MNAM] && !t->fields[MNAM]->gameHasIt, "game's copy is wrong, so it needs restoring");
 		auto c = Find(r, "ChildWorld");
+		Check(c && c->fields[ONAM] && c->fields[ONAM]->gameHasIt, "child world: game's copy is already right, nothing to look up");
 		Check(Field(c, ONAM) == F_ONAM, "child world's offset from the map mod");
 		Check(Field(c, MNAM) == "<none>", "child world without MNAM stays without");
 	}
@@ -104,6 +106,7 @@ int main(int argc, char** argv)
 		auto t = Find(r, "Tamriel");
 		Check(Field(t, MNAM) == V_MNAM, "base value kept");
 		Check(DecidedBy(t, MNAM) == "Base.esm", "decided by Base.esm");
+		Check(t && t->fields[MNAM]->gameHasIt, "game already has the base value");
 		Check(t && t->fields[MNAM]->resetBy.empty(), "nothing listed when nothing is wrong");
 	}
 

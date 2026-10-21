@@ -31,7 +31,7 @@ namespace
 
 int main()
 {
-	std::printf("LoreRim's case: map plugins, then mods that reset them\n");
+	std::printf("LoreRim's case: mods after the map plugin reset it\n");
 	{
 		std::vector<Plugin> lo = {
 			P("Skyrim.esm", {}, true), P("Dragonborn.esm", { "Skyrim.esm" }, true),
@@ -39,8 +39,8 @@ int main()
 			P("DLC1MapMarkerEnabler.esp", { "Skyrim.esm" }),
 			P("FWMF - Ultimate Patch.esp", { "Skyrim.esm", "Dragonborn.esm" }),
 			P("SomeArmor.esp", { "Skyrim.esm" }),
-			P("EldenSkyrim_RimSkills.esp", { "Skyrim.esm" }),
-			P("MapAddon.esp", { "FWMF - Ultimate Patch.esp" }),
+			P("EldenSkyrim.esp", { "Skyrim.esm" }),
+			P("EldenSkyrim_RimSkills.esp", { "Skyrim.esm", "EldenSkyrim.esp" }),
 			P("ahzFleetKnight.esp", { "Skyrim.esm" }),
 			P("LastArmor.esp", { "Skyrim.esm" }),
 		};
@@ -52,8 +52,18 @@ int main()
 		Check(plan.status == Plan::Status::kFixable, "fixable");
 		Check(plan.mapPlugins == Names{ "FWMF - Ultimate Patch.esp" }, "map plugin identified");
 		Check(plan.resetBy == Names{ "EldenSkyrim_RimSkills.esp", "ahzFleetKnight.esp" }, "both resetting plugins listed, in load order");
-		Check(plan.after == "ahzFleetKnight.esp", "moves after the last resetting plugin");
-		Check(plan.move == Names{ "FWMF - Ultimate Patch.esp", "MapAddon.esp" }, "a plugin that needs the map plugin as a master moves with it");
+		Check(plan.before == "FWMF - Ultimate Patch.esp", "they move up to just before the map plugin");
+		Check(plan.move == Names{ "EldenSkyrim.esp", "EldenSkyrim_RimSkills.esp", "ahzFleetKnight.esp" },
+			"a master the moved plugin needs moves up with it, in load order");
+		Check(plan.mastersMoved == Names{ "EldenSkyrim.esp" }, "and is reported as moved only as a master");
+	}
+
+	std::printf("Master already loads early enough\n");
+	{
+		std::vector<Plugin> lo = { P("Skyrim.esm", {}, true), P("Lib.esp", { "Skyrim.esm" }), P("Map.esp", { "Skyrim.esm" }),
+			P("Armor.esp", { "Skyrim.esm", "Lib.esp" }) };
+		auto plan = LoadOrder::MakePlan(lo, { { "Tamriel", "Map.esp", { "Armor.esp" } } });
+		Check(plan.move == Names{ "Armor.esp" } && plan.mastersMoved.empty(), "only the resetting plugin moves");
 	}
 
 	std::printf("Nothing to do\n");
@@ -70,18 +80,26 @@ int main()
 		Check(!plan.reason.empty(), "says why");
 	}
 
-	std::printf("Resetting plugin depends on the map plugin\n");
+	std::printf("Resetting plugin needs the map plugin as a master\n");
 	{
 		std::vector<Plugin> lo = { P("Skyrim.esm", {}, true), P("Map.esp", { "Skyrim.esm" }), P("Odd.esp", { "Map.esp" }) };
 		auto plan = LoadOrder::MakePlan(lo, { { "Tamriel", "Map.esp", { "Odd.esp" } } });
 		Check(plan.status == Plan::Status::kNotFixable, "not fixable: it must stay after its master");
 	}
 
+	std::printf("...or needs it through another master\n");
+	{
+		std::vector<Plugin> lo = { P("Skyrim.esm", {}, true), P("Map.esp", { "Skyrim.esm" }), P("Patch.esp", { "Map.esp" }),
+			P("Odd.esp", { "Patch.esp" }) };
+		auto plan = LoadOrder::MakePlan(lo, { { "Tamriel", "Map.esp", { "Odd.esp" } } });
+		Check(plan.status == Plan::Status::kNotFixable, "not fixable: found through the chain of masters");
+	}
+
 	std::printf("Names differ in case between the game and the list\n");
 	{
 		std::vector<Plugin> lo = { P("Skyrim.esm", {}, true), P("Map.esp", { "skyrim.esm" }), P("Armor.esp", { "Skyrim.esm" }) };
 		auto plan = LoadOrder::MakePlan(lo, { { "Tamriel", "MAP.ESP", { "armor.esp" } } });
-		Check(plan.status == Plan::Status::kFixable && plan.after == "Armor.esp" && plan.move == Names{ "Map.esp" }, "matched case-insensitively");
+		Check(plan.status == Plan::Status::kFixable && plan.before == "Map.esp" && plan.move == Names{ "Armor.esp" }, "matched case-insensitively");
 	}
 
 	std::printf("\n%s (%d failure%s)\n", g_failures ? "FAILED" : "ALL PASSED", g_failures, g_failures == 1 ? "" : "s");

@@ -5,9 +5,10 @@
 # (PurpleMapFix-LoadOrder.txt, next to its log) saying which plugins reset the map and
 # which plugins to move. This script applies that move to your plugin list.
 #
-# What it changes: the map plugins (for example FWMF and its patch) move to just after
-# the last plugin that resets them. Nothing else moves, except plugins that need a map
-# plugin as a master, which move along with it. A backup is made first.
+# What it changes: the plugins that reset the map move up to just before the map plugin
+# (for example FWMF's patch), keeping their order. A plugin can't load before its own
+# masters, so a master they need that loads later moves up with them. Nothing else
+# moves. A backup is made first.
 #
 # Run it with Mod Organizer 2 and the game closed. Works for Windows PowerShell 5.1+.
 
@@ -89,9 +90,10 @@ if ($status -ne 'fixable') { Fail "The report looks damaged (status '$status'). 
 $mapPlugins = Section 'map plugins'
 $resetBy = Section 'reset by'
 $move = Section 'move'
-$after = (Section 'after') -join ''
+$mastersMoved = Section 'masters moved'
+$before = (Section 'before') -join ''
 $loaded = Section 'loaded'
-if (-not $move -or -not $after) { Fail 'The report has no move in it. Start the game again to rewrite it.' }
+if (-not $move -or -not $before) { Fail 'The report has no move in it. Start the game again to rewrite it (this script needs the report from Purple Map Fix 1.1.0 or later).' }
 
 Say 'These plugins reset the map settings, because they load after the map plugins:'
 $resetBy | ForEach-Object { Say "  - $_" }
@@ -195,29 +197,24 @@ if (Test-Path -LiteralPath $locked) {
 
 # ---------------------------------------------------------------- the change
 
-# Moves the lines for $move to directly after the line for $after, keeping their order.
-# Returns $null if it's already in the right order.
+# Moves the lines for $move that are below the line for $before to directly above it,
+# keeping their order. Returns $null if nothing needs to move.
 function Get-Moved([string[]]$lines) {
     $moveSet = @{}
     foreach ($m in $move) { $moveSet[$m.ToLowerInvariant()] = $true }
-    $anchorName = $after.ToLowerInvariant()
+    $anchorName = $before.ToLowerInvariant()
 
     $anchorAt = -1
-    for ($i = 0; $i -lt $lines.Count; $i++) { if ((Norm $lines[$i]) -eq $anchorName) { $anchorAt = $i } }
-    if ($anchorAt -lt 0) { throw "'$after' isn't in $([IO.Path]::GetFileName($script:currentFile))" }
-
-    $needsMove = $false
-    for ($i = 0; $i -lt $anchorAt; $i++) { if ($moveSet.ContainsKey((Norm $lines[$i]))) { $needsMove = $true } }
-    if (-not $needsMove) { return $null }
+    for ($i = 0; $i -lt $lines.Count; $i++) { if ((Norm $lines[$i]) -eq $anchorName) { $anchorAt = $i; break } }
+    if ($anchorAt -lt 0) { throw "'$before' isn't in $([IO.Path]::GetFileName($script:currentFile))" }
 
     $moving = New-Object System.Collections.Generic.List[string]
     $rest = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($i -lt $anchorAt -and $moveSet.ContainsKey((Norm $lines[$i]))) { $moving.Add($lines[$i]) } else { $rest.Add($lines[$i]) }
+        if ($i -gt $anchorAt -and $moveSet.ContainsKey((Norm $lines[$i]))) { $moving.Add($lines[$i]) } else { $rest.Add($lines[$i]) }
     }
-    $at = -1
-    for ($i = 0; $i -lt $rest.Count; $i++) { if ((Norm $rest[$i]) -eq $anchorName) { $at = $i } }
-    $rest.InsertRange($at + 1, $moving)
+    if ($moving.Count -eq 0) { return $null }
+    $rest.InsertRange($anchorAt, $moving)
     return ,$rest.ToArray()
 }
 
@@ -243,19 +240,22 @@ foreach ($f in $files) {
 
 if (-not $changes) {
     Say ''
-    Say 'Already fixed: the map plugins already load after every plugin that reset them.'
+    Say 'Already fixed: every plugin that reset the map already loads before the map plugin.'
     Say 'Start the game once and the report will update.'
     exit 0
 }
 
 Say ''
-Say "Plan: move these plugins to just after '$after':"
-$move | ForEach-Object { Say "  - $_" }
-Say 'Nothing else changes.'
+Say "Plan: move these plugins up to just before '$before', in this order:"
+foreach ($m in $move) {
+    if ($mastersMoved -contains $m) { Say "  - $m   (needed as a master by a plugin above)" } else { Say "  - $m" }
+}
+Say 'Nothing else changes. Moving a plugin up can change which plugin wins its other conflicts,'
+Say 'so check your game after. The backups let you undo it.'
 if ($isVortexLike) {
     Say ''
     Warn 'This looks like a Vortex or manual setup. Vortex sorts plugins itself and may undo this.'
-    Warn 'In Vortex, the lasting way is a rule on each plugin above: Plugins tab -> the plugin -> Dependencies -> "Load after" -> ' + $after
+    Warn ('In Vortex, the lasting way is a rule on the map plugin: Plugins tab -> ' + $before + ' -> Dependencies -> "Load after" -> each plugin above')
 }
 
 if ($DryRun) { Say ''; Say 'Dry run: nothing was changed.'; exit 0 }

@@ -6,9 +6,12 @@
 - New load order report, `PurpleMapFix-LoadOrder.txt` (next to the log), written at each
   start: the plugins that reset the map and the load order change that fixes it for good.
 - New `PurpleMapFix Tools\Fix Load Order.bat`: applies that change to your Mod Organizer 2
-  profile (or plugins.txt), with a backup. It moves the map plugins to just after the last
-  plugin that resets them, and nothing else. `Preview Fix Load Order.bat` shows the change
-  without making it.
+  profile (or plugins.txt), with a backup. It moves the plugins that reset the map up to
+  just before the map plugin, with any master they need, and nothing else.
+  `Preview Fix Load Order.bat` shows the change without making it.
+- Faster startup with many plugins: only worldspaces whose map settings are actually wrong
+  are looked up (1 of 47 on a LoreRim test), and the load order report does no work when
+  nothing needs fixing.
 - `build.bat` packages the mod zip without debug symbols and with standard zip paths.
 
 ## 1.0.1 (2026-10-20)

@@ -252,6 +252,10 @@ namespace MapData
 							decided->resetBy.push_back(copies[n].plugin);
 						}
 					}
+					// The game uses the last copy. If it lacks the field, what the game ends
+					// up with isn't known from the files, so it counts as "check it".
+					const auto& last = copies.back().fields[i];
+					decided->gameHasIt = last && *last == decided->value;
 				}
 				r.fields[i] = std::move(decided);
 			}
