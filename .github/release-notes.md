@@ -17,7 +17,7 @@ FWMF works by moving the map camera high above a flat paper map. It stores that 
 1. **Fixes the purple map, in any load order.** At startup it reads the worldspace records of every plugin. For each map setting it ignores plugins that just carry a stale vanilla copy, and keeps the value from the last plugin that changed it on purpose. Works for every worldspace, including Solstheim, DLC and new lands, and for any map mod.
 2. **Patches missing map textures.** When the map opens it checks the textures the map is drawn from. Missing ones are patched with parchment (paper maps) or stone, or broken distant objects are hidden. Each broken file is logged so you can fix the real cause.
 
-It never changes your load order or any file on disk. The log says exactly what it restored and which plugin had reset it:
+The mod itself never changes your load order or any file on disk. The log says exactly what it restored and which plugin had reset it:
 
 ```
 Map data: Tamriel map bounds and camera (MNAM) restored from 'FWMF - Ultimate Patch.esp' (it was reset by 'ahzFleetKnight.esp', which loads later)
