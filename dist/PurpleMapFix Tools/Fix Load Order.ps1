@@ -16,10 +16,12 @@ param(
     [string]$PluginsTxt,   # use this plugins.txt instead of finding it
     [string]$Report,       # use this report instead of finding it
     [switch]$Yes,          # don't ask for confirmation
-    [switch]$DryRun        # show what would change, change nothing
+    [switch]$DryRun,       # show what would change, change nothing
+    [switch]$Force         # edit plugins.txt even when Vortex manages it
 )
 
 $ErrorActionPreference = 'Stop'
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Plugin lists can be in UTF-8 or the old Windows encoding, depending on the tool that
 # wrote them. Latin-1 maps every byte to one character and back, so files are read and
@@ -111,38 +113,67 @@ function Get-Active([string]$path) {
     return ,$names.ToArray()
 }
 
-# How well a plugins.txt matches what the game loaded: share of its active plugins that
-# the game loaded, in the same relative order.
+# How well a plugins.txt matches what the game loaded:
+#   Order    = share of its active plugins that the game loaded, in the same order
+#   Coverage = share of what the game loaded that it has (a profile that's a subset of
+#              another, like LoreRim's Default vs Ultra, scores lower here)
 $loadedIndex = @{}
 for ($i = 0; $i -lt $loaded.Count; $i++) { $loadedIndex[$loaded[$i].ToLowerInvariant()] = $i }
 function Get-Match([string]$path) {
     $active = Get-Active $path
-    if ($active.Count -eq 0) { return 0.0 }
-    $last = -1; $good = 0
+    if ($active.Count -eq 0 -or $loaded.Count -eq 0) { return [pscustomobject]@{ Order = 0.0; Coverage = 0.0 } }
+    $last = -1; $inOrder = 0; $present = 0
     foreach ($n in $active) {
-        if ($loadedIndex.ContainsKey($n) -and $loadedIndex[$n] -gt $last) { $good++; $last = $loadedIndex[$n] }
+        if ($loadedIndex.ContainsKey($n)) {
+            $present++
+            if ($loadedIndex[$n] -gt $last) { $inOrder++; $last = $loadedIndex[$n] }
+        }
     }
-    return [double]$good / $active.Count
+    return [pscustomobject]@{ Order = [double]$inOrder / $active.Count; Coverage = [double]$present / $loaded.Count }
 }
 
-$isVortexLike = $false
-if (-not $PluginsTxt) {
-    $found = New-Object System.Collections.Generic.List[string]
-
-    # Mod Organizer 2: this script sits in <instance>\mods\<mod>\PurpleMapFix Tools, and
-    # profiles are in <instance>\profiles\<name>\plugins.txt. Walk up to find them.
-    $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    for ($n = 0; $n -lt 6 -and $dir; $n++) {
-        $profiles = Join-Path $dir 'profiles'
-        if (Test-Path -LiteralPath $profiles) {
-            Get-ChildItem -LiteralPath $profiles -Directory | ForEach-Object {
-                $p = Join-Path $_.FullName 'plugins.txt'
-                if (Test-Path -LiteralPath $p) { $found.Add($p) }
+# Folders that might hold Mod Organizer 2 profiles: above this script, above the game
+# folder (Wabbajack lists keep the game inside the MO2 folder), and MO2's own instances.
+function Get-ProfileFolders {
+    $roots = New-Object System.Collections.Generic.List[string]
+    $starts = @($ScriptDir)
+    $gameFolder = (Section 'game folder') -join ''
+    if ($gameFolder) { $starts += $gameFolder }
+    foreach ($start in $starts) {
+        $dir = $start
+        for ($n = 0; $n -lt 6 -and $dir; $n++) {
+            $roots.Add((Join-Path $dir 'profiles'))
+            $dir = Split-Path -Parent $dir
+        }
+    }
+    if ($env:LOCALAPPDATA) {
+        $instances = Join-Path $env:LOCALAPPDATA 'ModOrganizer'
+        if (Test-Path -LiteralPath $instances) {
+            Get-ChildItem -LiteralPath $instances -Directory | ForEach-Object {
+                $ini = Join-Path $_.FullName 'ModOrganizer.ini'
+                $base = $_.FullName
+                $prof = $null
+                if (Test-Path -LiteralPath $ini) {
+                    foreach ($l in (Read-Lines $ini)) {
+                        if ($l -match '^\s*base_directory\s*=\s*(.+?)\s*$') { $base = $Matches[1] -replace '/', '\' }
+                        if ($l -match '^\s*profiles_directory\s*=\s*(.+?)\s*$') { $prof = $Matches[1] -replace '/', '\' }
+                    }
+                }
+                if ($prof) { $roots.Add(($prof -replace '%BASE_DIR%', $base)) } else { $roots.Add((Join-Path $base 'profiles')) }
             }
         }
-        $dir = Split-Path -Parent $dir
     }
+    return ,($roots | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique)
+}
 
+if (-not $PluginsTxt) {
+    $found = New-Object System.Collections.Generic.List[string]
+    foreach ($root in (Get-ProfileFolders)) {
+        Get-ChildItem -LiteralPath $root -Directory | ForEach-Object {
+            $p = Join-Path $_.FullName 'plugins.txt'
+            if ((Test-Path -LiteralPath $p) -and -not $found.Contains($p)) { $found.Add($p) }
+        }
+    }
     # The game's own list (Vortex, manual installs).
     if ($env:LOCALAPPDATA) {
         foreach ($game in @('Skyrim Special Edition', 'Skyrim Special Edition GOG')) {
@@ -151,16 +182,17 @@ if (-not $PluginsTxt) {
         }
     }
 
-    $scored = $found | ForEach-Object { [pscustomobject]@{ Path = $_; Match = (Get-Match $_) } } |
-        Where-Object { $_.Match -ge 0.98 } | Sort-Object Match -Descending
-    if (-not $scored) {
+    $scored = @($found | ForEach-Object { $m = Get-Match $_; [pscustomobject]@{ Path = $_; Order = $m.Order; Coverage = $m.Coverage } } |
+        Where-Object { $_.Order -ge 0.98 } | Sort-Object Coverage -Descending)
+    if ($scored.Count -eq 0) {
         Warn "Couldn't find a plugin list that matches the load order the game last used."
+        Say  "Looked in $($found.Count) place(s). If you use Mod Organizer 2, the file is in <MO2 folder>\profiles\<your profile>\plugins.txt"
         if ($Yes) { Fail 'Run again with -PluginsTxt <path to plugins.txt>.' }
         $PluginsTxt = (Read-Host 'Paste the full path to your plugins.txt (or press Enter to stop)').Trim('" ')
         if (-not $PluginsTxt) { exit 1 }
     } else {
         $PluginsTxt = $scored[0].Path
-        if (@($scored).Count -gt 1 -and $scored[1].Match -eq $scored[0].Match) {
+        if ($scored.Count -gt 1 -and [math]::Abs($scored[1].Coverage - $scored[0].Coverage) -lt 0.0001) {
             Warn 'More than one profile matches equally well:'
             $scored | ForEach-Object { Say "  $($_.Path)" }
             if ($Yes) { Fail 'Run again with -PluginsTxt <path> to pick one.' }
@@ -172,10 +204,11 @@ if (-not (Test-Path -LiteralPath $PluginsTxt)) { Fail "Not found: $PluginsTxt" }
 $PluginsTxt = (Resolve-Path -LiteralPath $PluginsTxt).Path
 $folder = Split-Path -Parent $PluginsTxt
 $loadOrderTxt = Join-Path $folder 'loadorder.txt'
-$isVortexLike = [bool]$env:LOCALAPPDATA -and $PluginsTxt.StartsWith($env:LOCALAPPDATA, [StringComparison]::OrdinalIgnoreCase)
+$isGameList = [bool]$env:LOCALAPPDATA -and $PluginsTxt.StartsWith($env:LOCALAPPDATA, [StringComparison]::OrdinalIgnoreCase)
+$usesVortex = $isGameList -and [bool]$env:APPDATA -and (Test-Path -LiteralPath (Join-Path $env:APPDATA 'Vortex'))
 
 Say "Plugin list: $PluginsTxt"
-if ((Get-Match $PluginsTxt) -lt 0.98) {
+if ((Get-Match $PluginsTxt).Order -lt 0.98) {
     Warn 'Note: this plugin list differs from the load order the game last used. Check the result in your mod manager.'
 }
 
@@ -252,10 +285,25 @@ foreach ($m in $move) {
 }
 Say 'Nothing else changes. Moving a plugin up can change which plugin wins its other conflicts,'
 Say 'so check your game after. The backups let you undo it.'
-if ($isVortexLike) {
+
+if ($usesVortex -and -not $Force) {
+    # Vortex keeps its own plugin order and rewrites plugins.txt when it deploys or sorts,
+    # so editing the file would be undone. Rules are Vortex's lasting way to set order.
     Say ''
-    Warn 'This looks like a Vortex or manual setup. Vortex sorts plugins itself and may undo this.'
-    Warn ('In Vortex, the lasting way is a rule on the map plugin: Plugins tab -> ' + $before + ' -> Dependencies -> "Load after" -> each plugin above')
+    Warn 'You use Vortex, which manages the plugin order itself and would undo an edit to plugins.txt.'
+    Say  'Make the same fix in Vortex with "Load after" rules:'
+    Say  "  1. Open Vortex -> Plugins tab -> click '$before'."
+    Say  '  2. In the panel on the right, open Dependencies (Rules).'
+    Say  '  3. Add a "Load after" rule for each of these plugins:'
+    $resetBy | ForEach-Object { Say "       - $_" }
+    Say  '  4. Click Sort Now. Vortex places them above it (with their masters) and keeps it that way.'
+    Say ''
+    Say  'No files were changed. (To edit plugins.txt directly anyway, run with -Force.)'
+    exit 0
+}
+if ($isGameList) {
+    Say ''
+    Warn 'This is the game''s own plugin list. If a mod manager or LOOT sorts plugins later, it may undo this.'
 }
 
 if ($DryRun) { Say ''; Say 'Dry run: nothing was changed.'; exit 0 }

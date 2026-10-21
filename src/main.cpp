@@ -827,6 +827,14 @@ namespace
 			list("move", plan.move);
 			list("masters moved", plan.mastersMoved);
 			out << "[before]\n" << plan.before << "\n";
+			// Where the game runs from. Mod lists installed with Wabbajack (LoreRim, Nolvus...)
+			// keep the game inside the Mod Organizer folder, so the script can find the
+			// profiles from here wherever it's run from.
+			std::error_code ec;
+			const auto gameDir = std::filesystem::current_path(ec);
+			if (!ec) {
+				out << "[game folder]\n" << gameDir.string() << "\n";
+			}
 			// The whole load order, so the script can find the profile the game used.
 			out << "[loaded]\n";
 			for (const auto& p : order) {
