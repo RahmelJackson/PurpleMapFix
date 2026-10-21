@@ -413,15 +413,28 @@ namespace
 	// Rebuild a lit mesh's material with a copy of its texture set where the broken
 	// slots point to fallback textures. Same approach other texture-swap plugins use:
 	// build a temporary material, let SetMaterial copy it, then free the temporary.
-	bool SwapLightingTextures(RE::BSGeometry* geo, RE::BSLightingShaderProperty* prop,
-		RE::BSLightingShaderMaterialBase* oldMaterial, RE::BSTextureSet* oldSet,
-		const std::string& diffuse, bool fixDiffuse, bool fixNormal)
+	// Many meshes share one broken texture set (a whole LOD block, say), so each broken
+	// set is patched once and the patched copy reused. The cache holds a reference to
+	// the original set too, so its address can't be reused by a different set.
+	struct PatchedSet
 	{
-		RE::NiPointer<RE::BSShaderTextureSet> newSet(RE::BSShaderTextureSet::Create());
-		if (!newSet) {
-			return false;
+		RE::NiPointer<RE::BSTextureSet>       original;
+		const std::string*                    fallback;  // which replacement texture it uses
+		RE::NiPointer<RE::BSShaderTextureSet> patched;
+	};
+	std::unordered_map<const RE::BSTextureSet*, PatchedSet> g_patchedSets;
+
+	RE::NiPointer<RE::BSShaderTextureSet> GetPatchedSet(RE::BSTextureSet* oldSet, const std::string& diffuse, bool fixDiffuse, bool fixNormal)
+	{
+		const auto it = g_patchedSets.find(oldSet);
+		if (it != g_patchedSets.end() && it->second.fallback == &diffuse) {
+			return it->second.patched;
 		}
 
+		RE::NiPointer<RE::BSShaderTextureSet> newSet(RE::BSShaderTextureSet::Create());
+		if (!newSet) {
+			return {};
+		}
 		for (std::uint32_t i = 0; i < Slot::kTotal; ++i) {
 			const auto slot = static_cast<Slot>(i);
 			newSet->SetTexturePath(slot, oldSet->GetTexturePath(slot));
@@ -431,6 +444,22 @@ namespace
 		}
 		if (fixNormal) {
 			newSet->SetTexturePath(Slot::kNormal, Settings::flatNormal.c_str());
+		}
+
+		// Same set needing a different replacement (rare): use it, but keep the first in the cache.
+		if (it == g_patchedSets.end()) {
+			g_patchedSets.emplace(oldSet, PatchedSet{ RE::NiPointer<RE::BSTextureSet>(oldSet), &diffuse, newSet });
+		}
+		return newSet;
+	}
+
+	bool SwapLightingTextures(RE::BSGeometry* geo, RE::BSLightingShaderProperty* prop,
+		RE::BSLightingShaderMaterialBase* oldMaterial, RE::BSTextureSet* oldSet,
+		const std::string& diffuse, bool fixDiffuse, bool fixNormal)
+	{
+		const auto newSet = GetPatchedSet(oldSet, diffuse, fixDiffuse, fixNormal);
+		if (!newSet) {
+			return false;
 		}
 
 		auto newMaterial = static_cast<RE::BSLightingShaderMaterialBase*>(oldMaterial->Create());

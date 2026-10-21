@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A broken texture set shared by many meshes is now patched once and the patched copy
+  reused, instead of building a new one per mesh.
+
 ## 1.0.0 (2026-10-20)
 
 First public release.
