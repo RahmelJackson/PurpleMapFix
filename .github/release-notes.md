@@ -1,5 +1,9 @@
 **Purple Map Fix** keeps the Skyrim world map readable on big mod lists like **LoreRim** and **Nolvus**. It's an SKSE plugin with no .esp, so it doesn't use a plugin slot and load order doesn't matter.
 
+## New in 1.0.1
+
+- A broken texture set shared by many meshes is now patched once and reused, instead of rebuilt for every mesh. Less work on setups with broken map LOD.
+
 ## The problem
 
 Opening the world map shows a blank purple, pink or blue sheet instead of the map. This mostly happens on lists that use flat or paper maps built on **Flat World Map Framework (FWMF)**.
@@ -19,7 +23,7 @@ Map data: Tamriel map bounds and camera (MNAM) restored from 'FWMF - Ultimate Pa
 
 ## Cost
 
-Measured on LoreRim (3,646 plugins): 128 ms once on the loading screen, about 4 ms when the map opens, and nothing at all during normal play.
+Measured on LoreRim (3,646 plugins): about 130 ms once on the loading screen, about 4 ms the first time the map opens, about 0.2 ms each time after that, and nothing at all during normal play.
 
 ## Install
 
