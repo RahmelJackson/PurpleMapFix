@@ -108,4 +108,19 @@ try {
     $archive.Dispose()
 }
 Write-Host "Mod ready to install: $zip"
+
+# The Fix Load Order tool, as its own zip (extract anywhere and run).
+$toolZip = Join-Path $root 'PurpleMapFix-FixLoadOrder.zip'
+if (Test-Path $toolZip) { Remove-Item $toolZip }
+$toolDir = Join-Path $root 'tools\fix-load-order'
+$archive = [IO.Compression.ZipFile]::Open($toolZip, 'Create')
+try {
+    Get-ChildItem -LiteralPath $toolDir -File | ForEach-Object {
+        $entry = 'Purple Map Fix - Fix Load Order/' + $_.Name
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $entry, 'Optimal')
+    }
+} finally {
+    $archive.Dispose()
+}
+Write-Host "Fix Load Order tool: $toolZip"
 Done 0

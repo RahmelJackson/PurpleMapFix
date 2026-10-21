@@ -5,10 +5,13 @@
 - The log now lists every plugin that resets the map settings, not just the last one.
 - New load order report, `PurpleMapFix-LoadOrder.txt` (next to the log), written at each
   start: the plugins that reset the map and the load order change that fixes it for good.
-- New `PurpleMapFix Tools\Fix Load Order.bat`: applies that change to your Mod Organizer 2
-  profile (or plugins.txt), with a backup. It moves the plugins that reset the map up to
-  just before the map plugin, with any master they need, and nothing else.
-  `Preview Fix Load Order.bat` shows the change without making it.
+- New optional download, **Fix Load Order** (`PurpleMapFix-FixLoadOrder-1.1.0.zip`):
+  `Fix Load Order.bat` applies that change to your Mod Organizer 2 profile (or plugins.txt),
+  with a backup. It moves the plugins that reset the map up to just before the map plugin,
+  with any master they need, and nothing else. `Preview Fix Load Order.bat` shows the
+  change without making it. Run it from any folder: it finds your MO2 profile itself
+  (Wabbajack lists, global instances and portable installs). Vortex users get the
+  "Load after" rules to add instead.
 - Faster startup with many plugins: only worldspaces whose map settings are actually wrong
   are looked up (1 of 47 on a LoreRim test), and the load order report does no work when
   nothing needs fixing.

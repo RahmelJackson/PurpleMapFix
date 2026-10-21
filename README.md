@@ -25,6 +25,10 @@ and Solstheim maps that later plugins had reset.
 
 There's no .esp, so load order doesn't matter and it doesn't use a plugin slot.
 
+Optional: `PurpleMapFix-FixLoadOrder-x.y.z.zip` on the same page is a separate tool that
+makes the fix permanent in your load order. It isn't a mod: extract it anywhere and run it
+(see [Making it permanent](#making-it-permanent-fix-load-order)).
+
 ## Fix 1: map settings reset by load order
 
 Flat map mods like FWMF change two map settings on each worldspace record: the map camera
@@ -69,12 +73,16 @@ To apply it:
 
 1. Start the game once with Purple Map Fix installed (reaching the main menu is enough).
 2. Close the game and Mod Organizer 2.
-3. In MO2, right-click **Purple Map Fix** → **Open in Explorer**, open **PurpleMapFix Tools**,
-   and run **Preview Fix Load Order.bat** to see the change, then **Fix Load Order.bat** to
+3. Download **PurpleMapFix-FixLoadOrder-x.y.z.zip** (a separate download, so the mod itself
+   installs like any other) and extract it anywhere, your Downloads folder is fine.
+4. Run **Preview Fix Load Order.bat** to see the change, then **Fix Load Order.bat** to
    make it.
 
-The script finds your MO2 profile by matching it against the load order the game actually
-used, backs up `plugins.txt` and `loadorder.txt` (`.before-purplemapfix-<date>`), and moves
+The script finds your MO2 profile on its own, wherever it was run from: it looks above the
+game folder the report names (Wabbajack lists like LoreRim and Nolvus keep the game inside
+the MO2 folder), in MO2's global instances, and in every MO2 registered to handle Nexus
+downloads (portable installs). It picks the profile that matches the load order the game
+actually used, backs up `plugins.txt` and `loadorder.txt` (`.before-purplemapfix-<date>`), and moves
 only those lines. It refuses to run while MO2 or the game is open, and if a plugin it would
 move is locked in MO2. Moving a plugin up can change which plugin wins its other conflicts,
 so check your game after; the backups undo it. Vortex users get the equivalent "Load after"
@@ -189,7 +197,8 @@ build.bat
 ```
 
 It fetches [CommonLibSSE-NG](https://github.com/CharmedBaryon/CommonLibSSE-NG) (pinned to a
-tested commit) into `lib\`, builds, and writes `PurpleMapFix-mod.zip`.
+tested commit) into `lib\`, builds, and writes `PurpleMapFix-mod.zip` and
+`PurpleMapFix-FixLoadOrder.zip`.
 `install-tools-and-build.bat` installs any missing tools with winget first. Output is also
 saved to `build-log.txt`.
 
@@ -210,7 +219,7 @@ them on every push, and builds the Windows DLL.
 ### Releases
 
 Actions tab → **CI** → **Run workflow**, enter the version (e.g. `1.0.1`). It runs the tests,
-builds the mod and creates a **draft** release with the zip and the notes from
+builds the mod and creates a **draft** release with the mod zip, the Fix Load Order zip and the notes from
 `.github/release-notes.md`. Check it and click **Publish**; publishing creates the version tag.
 
 ## Project layout
@@ -220,7 +229,7 @@ builds the mod and creates a **draft** release with the zip and the notes from
 | `src/main.cpp` | SKSE plugin: map data restore, texture checks, settings, logging |
 | `src/MapData.h/.cpp` | Reads worldspace records from plugin files and resolves them (no game code) |
 | `src/LoadOrder.h/.cpp` | Plans the load order change for Fix Load Order (no game code) |
-| `dist/PurpleMapFix Tools/` | Fix Load Order scripts |
+| `tools/fix-load-order/` | Fix Load Order scripts (the separate FixLoadOrder download) |
 | `dist/` | The mod's non-code files: ini and fallback textures |
 | `tests/` | Synthetic plugin fixtures and resolver tests |
 | `tools/make_fallback_textures.py` | Regenerates the fallback textures |

@@ -2,7 +2,7 @@
 
 ## New in 1.1.0
 
-- **Fix Load Order:** the log now lists every plugin that resets the map, and the mod writes a load order report each time the game starts. Run **PurpleMapFix Tools\Fix Load Order.bat** (with MO2 closed) to make the fix permanent: it moves those plugins up to just before the map plugin (with any master they need), backs up your plugin list first, and changes nothing else. **Preview Fix Load Order.bat** shows the change first.
+- **Fix Load Order:** the log now lists every plugin that resets the map, and the mod writes a load order report each time the game starts. The new optional **Fix Load Order** download makes the fix permanent: extract it anywhere, close MO2 and run **Fix Load Order.bat**. It finds your MO2 profile itself, moves those plugins up to just before the map plugin (with any master they need), backs up your plugin list first, and changes nothing else. **Preview Fix Load Order.bat** shows the change first. Vortex users get the "Load after" rules to add instead.
 - Faster startup on big lists: only worldspaces that are actually wrong get looked up.
 - A broken texture set shared by many meshes is patched once and reused.
 
@@ -31,6 +31,10 @@ Measured on LoreRim (3,646 plugins): about 130 ms once on the loading screen, ab
 
 Requires SKSE64 and Address Library for SKSE Plugins. Skyrim SE 1.5.97 or AE 1.6.x (tested on 1.6.1170); not VR.
 
-Download **PurpleMapFix-x.y.z.zip** below and install it with Mod Organizer 2 or Vortex. (The `-pdb` zip is debug symbols for crash logs; you don't need it to play.)
+Download **PurpleMapFix-x.y.z.zip** below and install it with Mod Organizer 2 or Vortex, like any mod. That's all you need for a working map.
+
+Optional: **PurpleMapFix-FixLoadOrder-x.y.z.zip** is the Fix Load Order tool. Don't install it as a mod: extract it anywhere and run it with MO2 and the game closed (see its README.txt).
+
+The `-pdb` zip is debug symbols for crash logs; you don't need it to play.
 
 Log: `Documents\My Games\Skyrim Special Edition\SKSE\PurpleMapFix.log`. Settings: `SKSE\Plugins\PurpleMapFix.ini`. Full details in the [README](https://github.com/RahmelJackson/PurpleMapFix#readme).

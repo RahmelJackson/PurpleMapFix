@@ -65,6 +65,11 @@ jobs:
           Move-Item dist/SKSE/Plugins/PurpleMapFix.pdb symbols/ -ErrorAction SilentlyContinue
           Compress-Archive -Path dist/* -DestinationPath "PurpleMapFix-$ver.zip"
           Compress-Archive -Path symbols/* -DestinationPath "PurpleMapFix-$ver-pdb.zip"
+          # The Fix Load Order tool is its own download, run from wherever it's extracted.
+          $tool = 'tool/Purple Map Fix - Fix Load Order'
+          New-Item -ItemType Directory -Force $tool | Out-Null
+          Copy-Item tools/fix-load-order/* $tool
+          Compress-Archive -Path "tool/*" -DestinationPath "PurpleMapFix-FixLoadOrder-$ver.zip"
 
       - uses: actions/upload-artifact@v4
         with:

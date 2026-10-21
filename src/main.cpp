@@ -855,7 +855,7 @@ namespace
 				spdlog::warn("Load order:   needed as a master, moves up too: {}", m);
 			}
 			spdlog::warn("Load order: to fix it in your load order for good, close your mod manager and run \"Fix Load Order.bat\" "
-						 "(in the mod's \"PurpleMapFix Tools\" folder). It moves {} plugin{} up to just before '{}'. Report written in {:.2f} ms.",
+						 "(the separate Purple Map Fix - Fix Load Order download). It moves {} plugin{} up to just before '{}'. Report written in {:.2f} ms.",
 				plan.move.size(), plan.move.size() == 1 ? "" : "s", plan.before, us / 1000.0);
 			break;
 		case Status::kNotFixable:

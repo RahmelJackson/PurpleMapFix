@@ -10,7 +10,8 @@
 # masters, so a master they need that loads later moves up with them. Nothing else
 # moves. A backup is made first.
 #
-# Run it with Mod Organizer 2 and the game closed. Works for Windows PowerShell 5.1+.
+# Run it with Mod Organizer 2 and the game closed, from any folder (it finds your MO2
+# profile itself). Works for Windows PowerShell 5.1+.
 
 param(
     [string]$PluginsTxt,   # use this plugins.txt instead of finding it
@@ -132,38 +133,58 @@ function Get-Match([string]$path) {
     return [pscustomobject]@{ Order = [double]$inOrder / $active.Count; Coverage = [double]$present / $loaded.Count }
 }
 
-# Folders that might hold Mod Organizer 2 profiles: above this script, above the game
-# folder (Wabbajack lists keep the game inside the MO2 folder), and MO2's own instances.
+# Folders that might hold Mod Organizer 2 profiles. The script can be run from anywhere
+# (a Downloads folder is fine), so it looks in every place an MO2 install can be found:
+#   - above the game folder (Wabbajack lists like LoreRim and Nolvus keep the game
+#     inside the MO2 folder) and above this script
+#   - MO2's global instances (%LOCALAPPDATA%\ModOrganizer\<instance>)
+#   - every MO2 registered to handle Nexus downloads (nxmhandler.ini), which is how
+#     portable installs elsewhere on the PC are found
 function Get-ProfileFolders {
     $roots = New-Object System.Collections.Generic.List[string]
-    $starts = @($ScriptDir)
+    function Add-Instance([string]$dir) {
+        if (-not $dir) { return }
+        $base = $dir
+        $prof = $null
+        $ini = Join-Path $dir 'ModOrganizer.ini'
+        if (Test-Path -LiteralPath $ini) {
+            foreach ($l in (Read-Lines $ini)) {
+                if ($l -match '^\s*base_directory\s*=\s*(.+?)\s*$') { $base = $Matches[1] -replace '/', '\' }
+                if ($l -match '^\s*profiles_directory\s*=\s*(.+?)\s*$') { $prof = $Matches[1] -replace '/', '\' }
+            }
+        }
+        if ($prof) { $roots.Add(($prof -replace '%BASE_DIR%', $base)) }
+        $roots.Add((Join-Path $base 'profiles'))
+        if ($base -ne $dir) { $roots.Add((Join-Path $dir 'profiles')) }
+    }
+
+    $starts = @()
     $gameFolder = (Section 'game folder') -join ''
     if ($gameFolder) { $starts += $gameFolder }
+    $starts += $ScriptDir
     foreach ($start in $starts) {
         $dir = $start
         for ($n = 0; $n -lt 6 -and $dir; $n++) {
-            $roots.Add((Join-Path $dir 'profiles'))
+            Add-Instance $dir
             $dir = Split-Path -Parent $dir
         }
     }
     if ($env:LOCALAPPDATA) {
         $instances = Join-Path $env:LOCALAPPDATA 'ModOrganizer'
         if (Test-Path -LiteralPath $instances) {
-            Get-ChildItem -LiteralPath $instances -Directory | ForEach-Object {
-                $ini = Join-Path $_.FullName 'ModOrganizer.ini'
-                $base = $_.FullName
-                $prof = $null
-                if (Test-Path -LiteralPath $ini) {
-                    foreach ($l in (Read-Lines $ini)) {
-                        if ($l -match '^\s*base_directory\s*=\s*(.+?)\s*$') { $base = $Matches[1] -replace '/', '\' }
-                        if ($l -match '^\s*profiles_directory\s*=\s*(.+?)\s*$') { $prof = $Matches[1] -replace '/', '\' }
+            Get-ChildItem -LiteralPath $instances -Directory -ErrorAction SilentlyContinue | ForEach-Object { Add-Instance $_.FullName }
+            $nxm = Join-Path $instances 'nxmhandler.ini'
+            if (Test-Path -LiteralPath $nxm) {
+                foreach ($l in (Read-Lines $nxm)) {
+                    if ($l -match '^\s*\d+\\executable\s*=\s*"?(.+?)"?\s*$') {
+                        $exe = $Matches[1] -replace '\\\\', '\' -replace '/', '\'
+                        try { Add-Instance (Split-Path -Parent $exe) } catch { }
                     }
                 }
-                if ($prof) { $roots.Add(($prof -replace '%BASE_DIR%', $base)) } else { $roots.Add((Join-Path $base 'profiles')) }
             }
         }
     }
-    return ,($roots | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique)
+    return ,@($roots | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } | Select-Object -Unique)
 }
 
 if (-not $PluginsTxt) {
